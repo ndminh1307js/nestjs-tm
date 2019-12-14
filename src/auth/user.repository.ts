@@ -7,6 +7,7 @@ import {
   UnauthorizedException
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { PublicUser } from './interfaces/public-user.interface';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -27,7 +28,7 @@ export class UserRepository extends Repository<User> {
 
   async validateUserPassword(
     authCredentialsDTO: AuthCredentialsDTO
-  ): Promise<object> {
+  ): Promise<PublicUser> {
     const { username, password } = authCredentialsDTO;
 
     const user = await this.findOne({ username });
@@ -42,7 +43,11 @@ export class UserRepository extends Repository<User> {
       throw new UnauthorizedException('Password is wrong.');
     }
 
-    return { username };
+    const { password: removedPassword, ...others } = user;
+
+    const publicUser: PublicUser = others;
+
+    return publicUser;
   }
 
   private async hashPassword(password: string): Promise<string> {

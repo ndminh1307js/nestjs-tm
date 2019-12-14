@@ -3,9 +3,11 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  Unique
+  Unique,
+  OneToMany
 } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { Task } from 'src/tasks/task.entity';
 
 @Entity()
 @Unique(['username'])
@@ -18,6 +20,13 @@ export class User extends BaseEntity {
 
   @Column()
   password: string;
+
+  @OneToMany(
+    type => Task,
+    task => task.user,
+    { eager: true }
+  )
+  tasks: Task[];
 
   async validatePassword(password: string): Promise<boolean> {
     return await bcrypt.compare(password, this.password);
