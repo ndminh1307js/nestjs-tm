@@ -1,4 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  NotFoundException,
+  InternalServerErrorException,
+  Logger
+} from '@nestjs/common';
 import { Repository, EntityRepository } from 'typeorm';
 import { Task } from './task.entity';
 import { CreateTaskDTO } from './dto/create-task.dto';
@@ -8,26 +12,36 @@ import { User } from 'src/auth/user.entity';
 
 @EntityRepository(Task)
 export class TaskRepository extends Repository<Task> {
+  private logger = new Logger('TaskRepository');
   //get filtered tasks by query
   async getTasks(filterTaskDTO: FilterTaskDTO, user: User): Promise<Task[]> {
     const { status, search } = filterTaskDTO;
+
     const query = this.createQueryBuilder('task');
-    query.where('task.userId = :userId', { userId: user.id });
+
+    query.where('"userId"=:userId', { userId: user.id });
 
     if (status) {
-      query.andWhere('task.status = :status', { status });
+      query.andWhere('status=:status', { status });
     }
 
     if (search) {
-      query.andWhere(
-        'task.title LIKE :search OR task.description LIKE :search',
-        { search: `%${search}%` }
-      );
+      query.andWhere('title LIKE :search OR description LIKE :search', {
+        search: `%${search}%`
+      });
     }
 
-    const tasks = await query.getMany();
-
-    return tasks;
+    try {
+      const tasks = await query.getMany();
+      return tasks;
+    } catch (err) {
+      this.logger.verbose(
+        `Failed to get tasks for ${user.username}. Filters: ${JSON.stringify(
+          filterTaskDTO
+        )}`
+      );
+      throw new InternalServerErrorException('Get tasks failed.');
+    }
   }
 
   //get task by id
@@ -49,11 +63,18 @@ export class TaskRepository extends Repository<Task> {
     task.description = description;
     task.status = TaskStatus.OPEN;
     task.user = user;
-    await task.save();
-
-    delete task.user;
-
-    return task;
+    try {
+      await task.save();
+      delete task.user;
+      return task;
+    } catch (err) {
+      this.logger.verbose(
+        `Could not create new task for ${user.username}. Data: ${JSON.stringify(
+          createTaskDTO
+        )}. Error: ${err.message}`
+      );
+      throw new InternalServerErrorException();
+    }
   }
 
   //update task status
